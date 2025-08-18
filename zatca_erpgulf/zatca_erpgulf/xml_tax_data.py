@@ -646,7 +646,8 @@ def tax_data_with_template(invoice, sales_invoice_doc):
             else:
                 cbc_taxamount_2_value = str(round(totals["tax_amount"], 2))
 
-            cbc_taxamount_2.text = cbc_taxamount_2_value
+            # cbc_taxamount_2.text = cbc_taxamount_2_value
+            cbc_taxamount_2.text = str(round(totals["tax_amount"], 2))
 
             cac_taxcategory_1 = ET.SubElement(cac_taxsubtotal, "cac:TaxCategory")
             cbc_id_8 = ET.SubElement(cac_taxcategory_1, "cbc:ID")
