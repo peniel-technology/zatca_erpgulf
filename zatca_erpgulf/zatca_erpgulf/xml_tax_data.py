@@ -482,7 +482,7 @@ def tax_data_with_template(invoice, sales_invoice_doc):
 
         # Compute total tax
         total_tax = sum(
-            category_totals["tax_amount"]
+            (category_totals["taxable_amount"] * category_totals["tax_rate"] / 100)
             for category_totals in tax_category_totals.values()
         )
         total_tax = total_tax.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
@@ -606,6 +606,7 @@ def tax_data_with_template(invoice, sales_invoice_doc):
                     )
                 )
             )
+            item_amount = Decimal(abs(item.amount if sales_invoice_doc.currency == "SAR" else item.base_amount))
 
             tax_category_totals[zatca_tax_category]["taxable_amount"] += item_amount
 
@@ -619,9 +620,10 @@ def tax_data_with_template(invoice, sales_invoice_doc):
 
         # Calculate the tax amount using Decimal and proper rounding
         for zatca_tax_category, totals in tax_category_totals.items():
-            totals["tax_amount"] = (
-                totals["taxable_amount"] * totals["tax_rate"] / Decimal("100")
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            totals["tax_amount"] = abs(round(
+                totals["taxable_amount"] * totals["tax_rate"] / Decimal("100"),
+                                2
+            ))
 
         # Debugging Output
         # frappe.throw(f"tax_category_totals: {tax_category_totals}")
