@@ -119,7 +119,7 @@ def tax_data(invoice, sales_invoice_doc):
 
             tax_amount_without_retention_sar = Decimal(
                 str(abs(get_tax_total_from_items(sales_invoice_doc)))
-            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            ).quantize(Decimal("0.01"))
             cbc_taxamount_sar.text = str(
                 tax_amount_without_retention_sar
             )  # Tax amount in SAR
@@ -134,11 +134,7 @@ def tax_data(invoice, sales_invoice_doc):
             #     abs(get_tax_total_from_items(sales_invoice_doc)), 2
             # )
 
-            tax_amount_without_retention = float(
-                Decimal(str(abs(get_tax_total_from_items(sales_invoice_doc)))).quantize(
-                    Decimal("0.01"), rounding=ROUND_HALF_UP
-                )
-            )
+            tax_amount_without_retention = float(Decimal(str(abs(get_tax_total_from_items(sales_invoice_doc)))).quantize(Decimal("0.01")))
 
             cbc_taxamount.text = f"{abs(round(tax_amount_without_retention, 2)):.2f}"
 
