@@ -678,26 +678,17 @@ def tax_data_with_template(invoice, sales_invoice_doc):
 
         # Calculate the tax amount using Decimal and proper rounding
         for zatca_tax_category, totals in tax_category_totals.items():
-            totals["tax_amount"] = abs(round(
-                totals["taxable_amount"] * totals["tax_rate"] / Decimal("100"),
-                                2
-            ))
-
-        # Debugging Output
-        # frappe.throw(f"tax_category_totals: {tax_category_totals}")
+            tax_amount = abs(totals["taxable_amount"] * totals["tax_rate"] / 100)
+            totals["tax_amount"] = tax_amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
         for zatca_tax_category, totals in tax_category_totals.items():
             cac_taxsubtotal = ET.SubElement(cac_taxtotal, "cac:TaxSubtotal")
             cbc_taxableamount = ET.SubElement(cac_taxsubtotal, "cbc:TaxableAmount")
             cbc_taxableamount.set("currencyID", sales_invoice_doc.currency)
             cbc_taxableamount.text = str(round(totals["taxable_amount"], 2))
-            
 
             cbc_taxamount_2 = ET.SubElement(cac_taxsubtotal, "cbc:TaxAmount")
             cbc_taxamount_2.set("currencyID", sales_invoice_doc.currency)
-            # cbc_taxamount_2.text = str(round(totals["tax_amount"], 2))
-            cbc_taxamount_value = str(tax_amount_without_retention)
-            cbc_taxamount_2_value = str(round(totals["tax_amount"], 2))
 
             if totals["tax_rate"] == Decimal("15.00"):
                 cbc_taxamount_2_value = str(tax_amount_without_retention)
@@ -716,8 +707,7 @@ def tax_data_with_template(invoice, sales_invoice_doc):
             # else:
             #     cbc_taxamount_2_value = str(round(totals["tax_amount"], 2))
 
-            # cbc_taxamount_2.text = cbc_taxamount_2_value
-            cbc_taxamount_2.text = str(round(totals["tax_amount"], 2))
+            cbc_taxamount_2.text = cbc_taxamount_2_value
 
             cac_taxcategory_1 = ET.SubElement(cac_taxsubtotal, "cac:TaxCategory")
             cbc_id_8 = ET.SubElement(cac_taxcategory_1, "cbc:ID")
