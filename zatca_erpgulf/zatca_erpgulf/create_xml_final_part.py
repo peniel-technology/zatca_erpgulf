@@ -1379,9 +1379,6 @@ def xml_structuring(invoice):
         # final_xml_path = f"{frappe.local.site}/private/files/finalzatcaxml_{invoice_number}.xml"
         frappe.log_error(pretty_xml_string, "ZATCA XML Structure")
 
-        with open(final_xml_path, "w", encoding="utf-8") as file:
-            file.write(pretty_xml_string)
-
         # with open(final_xml_path, "w", encoding="utf-8") as file:
         #     file.write(pretty_xml_string)
         return pretty_xml_string
