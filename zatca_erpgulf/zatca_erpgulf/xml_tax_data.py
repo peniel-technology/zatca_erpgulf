@@ -672,7 +672,6 @@ def tax_data_with_template(invoice, sales_invoice_doc):
                     )
                 )
             )
-            item_amount = Decimal(abs(item.amount if sales_invoice_doc.currency == "SAR" else item.base_amount))
 
             tax_category_totals[zatca_tax_category]["taxable_amount"] += item_amount
 
