@@ -62,6 +62,7 @@ from zatca_erpgulf.zatca_erpgulf.sign_invoice_first import (
     get_tlv_for_value,
     update_qr_toxml,
     compliance_api_call,
+    extract_qr_from_xml,
 )
 from zatca_erpgulf.zatca_erpgulf.sales_invoice_with_xmlqr import (
     submit_sales_invoice_withxmlqr,
@@ -178,7 +179,13 @@ def attach_qr_image(qrcodeb64, sales_invoice_doc):
             # frappe.log("Custom field 'ksa_einv_qr' created.")
         qr_code = sales_invoice_doc.get("ksa_einv_qr")
         if qr_code and frappe.db.exists({"doctype": "File", "file_url": qr_code}):
-            return
+            existing_file_name = (
+                frappe.db.get_value("File", {"file_url": qr_code}, "file_name") or ""
+            )
+            if existing_file_name.startswith("QR_Phase2_"):
+                return
+            # Fall through to replace a Phase-1 or unknown QR so a Phase-2
+            # invoice never keeps a Phase-1 payload in ksa_einv_qr.
         qr_image = io.BytesIO()
         qr = qr_create(qrcodeb64, error="L")
         qr.png(qr_image, scale=8, quiet_zone=1)
@@ -1011,14 +1018,18 @@ def zatca_call(
                 )
 
             else:
-                clearance_api(
+                cleared_xml = clearance_api(
                     uuid1,
                     encoded_hash,
                     signed_xmlfile_name,
                     invoice_number,
                     sales_invoice_doc,
                 )
-                attach_qr_image(qrcodeb64, sales_invoice_doc)
+                # For standard invoices, prefer the QR ZATCA returns inside
+                # the cleared XML over the locally generated one.
+                attach_qr_image(
+                    extract_qr_from_xml(cleared_xml) or qrcodeb64, sales_invoice_doc
+                )
         else:
             compliance_api_call(
                 uuid1,

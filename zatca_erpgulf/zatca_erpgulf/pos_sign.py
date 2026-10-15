@@ -60,6 +60,7 @@ from zatca_erpgulf.zatca_erpgulf.sign_invoice_first import (
     get_tlv_for_value,
     update_qr_toxml,
     compliance_api_call,
+    extract_qr_from_xml,
 )
 from zatca_erpgulf.zatca_erpgulf.pos_submit_with_xml_qr import submit_pos_withxmlqr
 from zatca_erpgulf.zatca_erpgulf.pos_submit__without_xml import (
@@ -805,14 +806,18 @@ def zatca_call(
                 )
 
             else:
-                clearance_api(
+                cleared_xml = clearance_api(
                     uuid1,
                     encoded_hash,
                     signed_xmlfile_name,
                     invoice_number,
                     pos_invoice_doc,
                 )
-                attach_qr_image(qrcodeb64, pos_invoice_doc)
+                # For standard invoices, prefer the QR ZATCA returns inside
+                # the cleared XML over the locally generated one.
+                attach_qr_image(
+                    extract_qr_from_xml(cleared_xml) or qrcodeb64, pos_invoice_doc
+                )
         else:
             compliance_api_call(
                 uuid1, encoded_hash, signed_xmlfile_name, company_abbr, source_doc

@@ -952,24 +952,54 @@ def extract_public_key_data(company_abbr, source_doc):
 
 
 def get_tlv_for_value(tag_num, tag_value):
-    """get the tlv data value for teh qr"""
+    """Encode one QR tag as TLV with BER definite length.
+
+    Lengths below 128 use the short form, 128 to 255 use 0x81 plus one
+    byte, and 256 to 65535 use 0x82 plus two bytes. ZATCA rejects a raw
+    length byte of 0x80 or above, which long Arabic seller names produce.
+    """
     try:
-        tag_num_buf = bytes([tag_num])
         if tag_value is None:
             frappe.throw(f"Error: Tag value for tag number {tag_num} is None")
-        if isinstance(tag_value, str):
-            if len(tag_value) < 256:
-                tag_value_len_buf = bytes([len(tag_value)])
-            else:
-                tag_value_len_buf = bytes(
-                    [0xFF, (len(tag_value) >> 8) & 0xFF, len(tag_value) & 0xFF]
-                )
-            tag_value = tag_value.encode("utf-8")
+        value_bytes = (
+            tag_value.encode("utf-8") if isinstance(tag_value, str) else bytes(tag_value)
+        )
+        length = len(value_bytes)
+        if length < 128:
+            tag_value_len_buf = bytes([length])
+        elif length <= 0xFF:
+            tag_value_len_buf = bytes([0x81, length])
+        elif length <= 0xFFFF:
+            tag_value_len_buf = bytes([0x82, (length >> 8) & 0xFF, length & 0xFF])
         else:
-            tag_value_len_buf = bytes([len(tag_value)])
-        return tag_num_buf + tag_value_len_buf + tag_value
+            frappe.throw(f"Error: Tag value for tag number {tag_num} is too long")
+        return bytes([tag_num]) + tag_value_len_buf + value_bytes
     except (ValueError, KeyError, TypeError, frappe.ValidationError) as e:
         frappe.throw(_(" error in getting the tlv data value: " + str(e)))
+        return None
+
+
+def extract_qr_from_xml(xml_string):
+    """Return the QR string embedded in a signed or cleared XML, else None."""
+    try:
+        if not xml_string:
+            return None
+        root = etree.fromstring(
+            xml_string.encode("utf-8") if isinstance(xml_string, str) else xml_string
+        )
+        namespaces = {
+            "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
+            "cbc": "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
+        }
+        elements = root.xpath(
+            './/cac:AdditionalDocumentReference[cbc:ID="QR"]'
+            "/cac:Attachment/cbc:EmbeddedDocumentBinaryObject",
+            namespaces=namespaces,
+        )
+        if elements and elements[0].text and elements[0].text.strip():
+            return elements[0].text.strip()
+        return None
+    except (ValueError, KeyError, TypeError, etree.XMLSyntaxError):
         return None
 
 
@@ -1085,7 +1115,7 @@ def generate_tlv_xml(final_xml_string,company_abbr,source_doc):
             (5, "/ubl:Invoice/cac:TaxTotal/cbc:TaxAmount"),
             (
                 6,
-                "/ubl:Invoice/ext:UBLExtensions/ext:UBLExtension/ext:ExtensionContent/sig:UBLDocumentSignatures/sac:SignatureInformation/ds:Signature/ds:SignedInfo/ds:Reference/ds:DigestValue",
+                "/ubl:Invoice/ext:UBLExtensions/ext:UBLExtension/ext:ExtensionContent/sig:UBLDocumentSignatures/sac:SignatureInformation/ds:Signature/ds:SignedInfo/ds:Reference[@Id='invoiceSignedData']/ds:DigestValue",
             ),
             (
                 7,
@@ -1110,8 +1140,44 @@ def generate_tlv_xml(final_xml_string,company_abbr,source_doc):
             else:
                 result_dict[tag] = xpath
         result_dict[3] = issue_date_time
+        # Tag 5 must be the VAT total in document currency, not the SAR
+        # accounting-currency TaxTotal that comes first for foreign invoices.
+        currency_results = root.xpath(
+            "/ubl:Invoice/cbc:DocumentCurrencyCode", namespaces=namespaces
+        )
+        document_currency = (
+            currency_results[0].text.strip()
+            if currency_results and currency_results[0].text
+            else None
+        )
+        if document_currency:
+            for tax_amount in root.xpath(
+                "/ubl:Invoice/cac:TaxTotal/cbc:TaxAmount", namespaces=namespaces
+            ):
+                if tax_amount.get("currencyID") == document_currency:
+                    result_dict[5] = tax_amount.text
+                    break
         result_dict[8] = tag8_publickey(company_abbr, source_doc)
-        result_dict[9] = tag9_signature_ecdsa(company_abbr, source_doc)
+        # Tag 9 (stamp signature) is required only for simplified invoices
+        # (InvoiceTypeCode name starting with 02). Standard invoices use 8 tags.
+        type_code_results = root.xpath(
+            "/ubl:Invoice/cbc:InvoiceTypeCode", namespaces=namespaces
+        )
+        type_code_name = (
+            type_code_results[0].get("name", "") if type_code_results else ""
+        )
+        if type_code_name.startswith("02"):
+            result_dict[9] = tag9_signature_ecdsa(company_abbr, source_doc)
+        else:
+            result_dict.pop(9, None)
+        for required_tag in (1, 2, 3, 4, 5, 6, 7, 8):
+            required_value = result_dict.get(required_tag)
+            if required_value in (None, "", "Not found") or (
+                isinstance(required_value, str) and "Missing Data" in required_value
+            ):
+                frappe.throw(
+                    _(f"Missing value for QR tag {required_tag} in signed XML")
+                )
         result_dict[1] = result_dict[1].encode(
             "utf-8"
         )  # Handling Arabic company name in QR Code

@@ -32,6 +32,20 @@ from pyqrcode import create as qr_create
 from erpnext import get_region
 
 
+def _tlv_hex(tag_num, value_bytes):
+    """Encode one tag as TLV hex with BER definite length."""
+    length = len(value_bytes)
+    if length < 128:
+        length_buf = bytes([length])
+    elif length <= 0xFF:
+        length_buf = bytes([0x81, length])
+    elif length <= 0xFFFF:
+        length_buf = bytes([0x82, (length >> 8) & 0xFF, length & 0xFF])
+    else:
+        frappe.throw(_("QR tag value too long for tag {}").format(tag_num))
+    return (bytes([tag_num]) + length_buf + value_bytes).hex()
+
+
 def create_qr_code(doc, method=None):  # pylint: disable=unused-argument
     """this concept is giving A qr code for every time of zatca call
     TLV conversion for
@@ -85,10 +99,7 @@ def create_qr_code(doc, method=None):  # pylint: disable=unused-argument
                 )
             )
 
-        tag = bytes([1]).hex()
-        length = bytes([len(seller_name.encode("utf-8"))]).hex()
-        value = seller_name.encode("utf-8").hex()
-        tlv_array.append("".join([tag, length, value]))
+        tlv_array.append(_tlv_hex(1, seller_name.encode("utf-8")))
 
         # VAT Number
         tax_id = frappe.db.get_value("Company", doc.company, "tax_id")
@@ -97,10 +108,7 @@ def create_qr_code(doc, method=None):  # pylint: disable=unused-argument
                 _("Tax ID missing for {} in the company document").format(doc.company)
             )
 
-        tag = bytes([2]).hex()
-        length = bytes([len(tax_id)]).hex()
-        value = tax_id.encode("utf-8").hex()
-        tlv_array.append("".join([tag, length, value]))
+        tlv_array.append(_tlv_hex(2, tax_id.encode("utf-8")))
 
         # Time Stamp
         posting_date = getdate(doc.posting_date)
@@ -109,25 +117,16 @@ def create_qr_code(doc, method=None):  # pylint: disable=unused-argument
         time_stamp = add_to_date(posting_date, seconds=seconds)
         time_stamp = time_stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-        tag = bytes([3]).hex()
-        length = bytes([len(time_stamp)]).hex()
-        value = time_stamp.encode("utf-8").hex()
-        tlv_array.append("".join([tag, length, value]))
+        tlv_array.append(_tlv_hex(3, time_stamp.encode("utf-8")))
 
         # Invoice Amount
         invoice_amount = str(doc.base_grand_total)
-        tag = bytes([4]).hex()
-        length = bytes([len(invoice_amount)]).hex()
-        value = invoice_amount.encode("utf-8").hex()
-        tlv_array.append("".join([tag, length, value]))
+        tlv_array.append(_tlv_hex(4, invoice_amount.encode("utf-8")))
 
         # VAT Amount
         vat_amount = str(doc.total_taxes_and_charges)
 
-        tag = bytes([5]).hex()
-        length = bytes([len(vat_amount)]).hex()
-        value = vat_amount.encode("utf-8").hex()
-        tlv_array.append("".join([tag, length, value]))
+        tlv_array.append(_tlv_hex(5, vat_amount.encode("utf-8")))
 
         # Joining bytes into one
         tlv_buff = "".join(tlv_array)

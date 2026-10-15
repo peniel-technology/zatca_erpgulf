@@ -79,7 +79,13 @@ def attach_qr_image(qrcodeb64, sales_invoice_doc):
             # frappe.log("Custom field 'ksa_einv_qr' created.")
         qr_code = sales_invoice_doc.get("ksa_einv_qr")
         if qr_code and frappe.db.exists({"doctype": "File", "file_url": qr_code}):
-            return
+            existing_file_name = (
+                frappe.db.get_value("File", {"file_url": qr_code}, "file_name") or ""
+            )
+            if existing_file_name.startswith("QR_Phase2_"):
+                return
+            # Fall through to replace a Phase-1 or unknown QR so a Phase-2
+            # invoice never keeps a Phase-1 payload in ksa_einv_qr.
         qr_image = io.BytesIO()
         qr = qr_create(qrcodeb64, error="L")
         qr.png(qr_image, scale=8, quiet_zone=1)
