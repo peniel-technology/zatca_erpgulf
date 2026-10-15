@@ -1,6 +1,11 @@
 
 Saudi Arabian E-Invoicing (ZATCA Phase-2) – A Frappe ERPNext App
 
+---
+**Lead Technical Consultant:** Fadi Al-Qassas
+**Focus:** ERPNext Core Architecture & ZATCA Compliance Integration
+---
+
 A Frappe ERPNext app for businesses in Saudi Arabia, ensuring compliance with ZATCA Phase-2 e-invoicing regulations.
 
 🚀 Features
@@ -14,6 +19,48 @@ A Frappe ERPNext app for businesses in Saudi Arabia, ensuring compliance with ZA
 ✅ Retrieve and attach QR Codes to invoices<br>
 ✅ Logging for audit trails & error handling<br>
 ✅ Reports to compare invoices with ZATCA portal statistics <br>
+
+### 💡 Lead Technical Contributions (مساهمات فادي القصاص التقنية)
+* **System Architecture:** Designing custom middleware to bridge ERPNext core functionality with ZATCA’s API requirements.
+* **Data Security:** Implementing robust security protocols for handling sensitive .pem and config files.
+* **Compliance Engineering:** Ensuring real-time validation of invoices against ZATCA standards to prevent regulatory rejection.
+* **Performance Optimization:** Custom SQL queries and server-side scripting to optimize database interactions during high-volume invoice processing.
+
+🔹 Additional Features
+
+### Credit Note for Legacy System Invoices
+
+Users can create and submit credit notes to ZATCA for invoices that were generated outside the current ERPNext system (legacy invoices).
+
+To enable this feature:
+
+* Go to **Company → ZATCA Settings**.
+* Enable the checkbox **"Allow Credit-note without Original Invoice in the System"**.
+* Enter the original legacy invoice number in **"Return Against for ZATCA"** on the Sales Invoice.
+
+This allows the credit note to be submitted to ZATCA even when the original invoice does not exist in ERPNext.
+
+### Skip ERPNext Credit Note Validations
+
+A new checkbox is available on the **Sales Invoice**:
+
+**"Skip Validation for Credit Note"**
+
+When enabled, ERPNext validations related to credit notes and the **Return Against** reference are bypassed. This allows organizations to process special business scenarios and submit the document to ZATCA without standard ERPNext return validations.
+
+### Profit Margin Method (PMM)
+
+A new checkbox is available on the **Sales Invoice**:
+
+**"ZATCA PMM (Profit Margin Method)"**
+
+When this checkbox is selected:
+
+* The Sales Invoice is submitted normally within ERPNext.
+* The invoice is **not submitted to ZATCA**.
+* No ZATCA clearance or reporting process is triggered for that invoice.
+
+This option is intended for transactions that fall under the Profit Margin Method (PMM) treatment and require special handling.
 
 🔹Version 3.0 Enhancements
 

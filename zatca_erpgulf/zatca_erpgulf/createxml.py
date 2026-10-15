@@ -13,7 +13,7 @@ from zatca_erpgulf.zatca_erpgulf.country_code import country_code_mapping
 
 CBC_ID = "cbc:ID"
 DS_TRANSFORM = "ds:Transform"
-
+SAUDI_ARABIA = "Saudi Arabia"
 
 def get_icv_code(invoice_number):
     """
@@ -55,6 +55,7 @@ def billing_reference_for_credit_and_debit_note(invoice, sales_invoice_doc):
         cbc_id13 = ET.SubElement(cac_invoicedocumentreference, CBC_ID)
         cbc_id13.text = (
             sales_invoice_doc.return_against
+            or sales_invoice_doc.custom_return_against_for_zatca
         )  # field from return against invoice.
 
         return invoice
@@ -740,10 +741,11 @@ def customer_data(invoice, sales_invoice_doc):
         # if address and address.country == "Saudi Arabia":
         #     cbc_company_id = ET.SubElement(cac_partytaxscheme_1, "cbc:CompanyID")
         #     cbc_company_id.text = customer_doc.tax_id
-         # Only add CompanyID if custom_buyer_id is not set
-        if not customer_doc.custom_buyer_id or customer_doc.tax_id:
+                 # Only add CompanyID for Saudi customers - ZATCA BR-KSA-44 requires
+        # BT-48 to be a 15-digit KSA VAT number starting and ending with 3
+        if customer_doc.tax_id and address and address.country == SAUDI_ARABIA:
             cbc_company_id = ET.SubElement(cac_partytaxscheme_1, "cbc:CompanyID")
-            cbc_company_id.text = customer_doc.tax_id 
+            cbc_company_id.text = customer_doc.tax_id
 
 
         # Always include tax scheme
@@ -786,7 +788,7 @@ def delivery_and_payment_means(invoice, sales_invoice_doc, is_return):
             cbc_instruction_note = ET.SubElement(
                 cac_payment_means, "cbc:InstructionNote"
             )
-            cbc_instruction_note.text = "Cancellation or Returned"
+            cbc_instruction_note.text = sales_invoice_doc.custom_credit_note_reasoninstruction_note
         
         if sales_invoice_doc.is_debit_note == 1 :
             cbc_instruction_note = ET.SubElement(

@@ -129,7 +129,7 @@ frappe.ui.form.on("Sales Invoice", {
                     }
                 });
         }
-   
+
 
         frm.page.add_menu_item(__('Print PDF-A3'), function () {
             // Create a dialog box with fields for Print Format, Letterhead, and Language
@@ -249,6 +249,15 @@ frappe.ui.form.on('Sales Invoice', {
                 `,
                 links: [
                     "https://docs.claudion.com/Claudion-Docs/selfbilled",
+                ],
+            },
+            {
+                fieldname: "custom_zatca_pmm",
+                text: `
+                    The invoice is submitted normally in ERPNext but is not transmitted to ZATCA, allowing businesses that trade in eligible second-hand goods to manage PMM transactions separately and comply with ZATCA's Profit Margin Method VAT regulations.
+                `,
+                links: [
+                    "https://docs.claudion.com/Claudion-Docs/PMM",
                 ],
             },
         ];
@@ -445,10 +454,10 @@ frappe.ui.form.on('Sales Invoice', {
 
 
 frappe.ui.form.on('Sales Invoice', {
-    refresh: function(frm) {
+    refresh: function (frm) {
         if (!frm.is_new()) {
             // Add menu item like Print PDF-A3
-            frm.page.add_menu_item(__('Create XML for Debug'), function() {
+            frm.page.add_menu_item(__('Create XML for Debug'), function () {
                 frappe.call({
                     method: "zatca_erpgulf.zatca_erpgulf.debug_xml.debug_call",
                     args: {
@@ -456,7 +465,7 @@ frappe.ui.form.on('Sales Invoice', {
                     },
                     freeze: true,
                     freeze_message: __("Generating Debug XML..."),
-                    callback: function(r) {
+                    callback: function (r) {
                         if (r.message && r.message.status === "success") {
                             frappe.msgprint(__('✅ Debug XML attached successfully!'));
                             frm.reload_doc();
@@ -467,3 +476,56 @@ frappe.ui.form.on('Sales Invoice', {
         }
     }
 });
+
+frappe.ui.form.on("Sales Invoice", {
+    refresh(frm) {
+        toggle_return_against_field(frm);
+    },
+
+    company(frm) {
+        toggle_return_against_field(frm);
+    },
+
+    is_return(frm) {
+        toggle_return_against_field(frm);
+    }
+});
+
+function toggle_return_against_field(frm) {
+    if (!frm.doc.company) {
+        frm.set_df_property("custom_return_against_for_zatca", "hidden", 1);
+        return;
+    }
+
+    frappe.db.get_value(
+        "Company",
+        frm.doc.company,
+        "custom_allow_creditnote_without_original_invoice_in_the_system"
+    ).then((r) => {
+        const show_field =
+            frm.doc.is_return == 1 &&
+            cint(r.message.custom_allow_creditnote_without_original_invoice_in_the_system) == 1;
+
+        frm.set_df_property(
+            "custom_return_against_for_zatca",
+            "hidden",
+            !show_field
+        );
+    });
+}
+
+frappe.ui.form.on('Sales Invoice', {
+    refresh(frm) {
+        frm.fields_dict.custom_zatca_pmm_warning.$wrapper.html(`
+            <div style="
+                background:#fff3cd;
+                border:1px solid #ffeeba;
+                padding:10px;
+                border-radius:4px;
+                margin-top:5px;">
+                ⚠️ <b>Important:</b> Please consult your auditor or ZATCA account manager before selecting invoice type, to ensure you are fully legally compliant and eligible to use it.
+            </div>
+        `);
+    }
+});
+

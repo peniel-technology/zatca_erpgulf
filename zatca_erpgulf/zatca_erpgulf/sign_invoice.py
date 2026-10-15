@@ -35,6 +35,7 @@ from zatca_erpgulf.zatca_erpgulf.createxml import (
     invoice_typecode_simplified,
     invoice_typecode_standard,
 )
+
 from zatca_erpgulf.zatca_erpgulf.xml_tax_data import tax_data, tax_data_with_template
 from zatca_erpgulf.zatca_erpgulf.create_xml_final_part import (
     tax_data_nominal,
@@ -75,7 +76,9 @@ from zatca_erpgulf.zatca_erpgulf.submit_xml_qr_notmultiple import (
 from zatca_erpgulf.zatca_erpgulf.zatca_background_sched import (
     zatca_call_scheduler_background,
 )
-
+from zatca_erpgulf.zatca_erpgulf.pdf_a3 import (
+    call_embed_pdf_on_submit
+)
 REPORTED_XML = "%Reported xml file%"
 SAUDI_ARABIA = "Saudi Arabia"
 
@@ -1411,9 +1414,22 @@ def zatca_background(invoice_number: str, source_doc:str|dict=None, bypass_backg
                 ):
                     frappe.throw(
                         _(
-                            "As per ZATCA regulations, Customer Tax ID must start with 3 and end with 3."
+                            "As per ZATCA regulations, Customer Tax ID need to  start with 3 and end with 3."
                         )
                     )
+        tax_id = (customer_doc.tax_id or "").strip()
+
+        if tax_id and address and address.country == SAUDI_ARABIA:
+            if (
+                not tax_id.isdigit()
+                or len(tax_id) != 15
+                or not (tax_id.startswith("3") and tax_id.endswith("3"))
+            ):
+                frappe.throw(
+                    _(
+                        "As per ZATCA regulations, Customer Tax ID must be exactly 15 digits and start with 3 and end with 3."
+                    )
+                )
         if not customer_doc.custom_buyer_id_type and customer_doc.custom_buyer_id:
             frappe.throw(_("Buyer ID must be blank if Buyer ID Type is not set."))
         if "claudion4saudi" in frappe.get_installed_apps():
@@ -1504,6 +1520,9 @@ def zatca_background(invoice_number: str, source_doc:str|dict=None, bypass_backg
                     " Please contact your system administrator"
                 )
             )
+        if sales_invoice_doc.custom_zatca_pmm == 1:
+            frappe.throw(_("This invoice is marked as PMM. Skipping ZATCA submission."))
+            
         # if settings.custom_phase_1_or_2 == "Phase-2":
         is_gpos_installed = "gpos" in frappe.get_installed_apps()
 
@@ -1597,7 +1616,8 @@ def zatca_background_on_submit(doc: "str|dict", _method: str = None, bypass_back
         if company_doc.custom_zatca_invoice_enabled != 1:
             # frappe.msgprint("Zatca Invoice is not enabled. Submitting the document.")
             return  # Exit the function without further checks
-
+        if sales_invoice_doc.custom_zatca_pmm == 1:
+            return
         # 🚨 Skip ZATCA logic if Company Tax ID = Customer Tax ID
         if company_doc.tax_id and customer_doc.tax_id:
             if company_doc.tax_id.strip() == customer_doc.tax_id.strip():
@@ -1860,6 +1880,19 @@ def zatca_background_on_submit(doc: "str|dict", _method: str = None, bypass_back
                             "As per ZATCA regulations, Customer Tax ID must start with 3 and end with 3."
                         )
                     )
+        tax_id = (customer_doc.tax_id or "").strip()
+
+        if tax_id and address and address.country == SAUDI_ARABIA:
+            if (
+                not tax_id.isdigit()
+                or len(tax_id) != 15
+                or not (tax_id.startswith("3") and tax_id.endswith("3"))
+            ):
+                frappe.throw(
+                    _(
+                        "As per ZATCA regulations, Customer Tax ID must be exactly 15 digits and start with 3 and end with 3."
+                    )
+                )
         if not customer_doc.custom_buyer_id_type and customer_doc.custom_buyer_id:
             frappe.throw(_("Buyer ID must be blank if Buyer ID Type is not set."))
         if "claudion4saudi" in frappe.get_installed_apps():
@@ -2009,6 +2042,8 @@ def zatca_background_on_submit(doc: "str|dict", _method: str = None, bypass_back
 
         else:
             create_qr_code(sales_invoice_doc, method=None)
+        call_embed_pdf_on_submit(sales_invoice_doc,method=None)
+        
         doc.reload()
     except (ValueError, TypeError, KeyError, frappe.ValidationError) as e:
         frappe.throw(_(f"Error in background call on submit: {str(e)}"))
